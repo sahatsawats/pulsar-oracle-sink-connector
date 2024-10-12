@@ -41,6 +41,13 @@ public class OracleSinkConfig implements Serializable {
 
     @FieldDoc(
             required = true,
+            defaultValue = "username",
+            help = "A name of schema that include table"
+    )
+    private String schema = this.getUser();
+
+    @FieldDoc(
+            required = true,
             defaultValue = "",
             help = "A name of table within scheme that connect to"
     )
