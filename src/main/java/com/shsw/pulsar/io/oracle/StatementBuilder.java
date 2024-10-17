@@ -21,7 +21,10 @@ public class StatementBuilder {
     @Data(staticConstructor = "of")
     public static class ColumnMetaData {
         private final String columnName;
-        private final String dataType;
+        // Used for bind value to statement with statement.set
+        private final Integer dataType;
+        private final String dataTypeName;
+        // Used for bind value to the column index
         private final Integer position;
     }
 
@@ -88,6 +91,36 @@ public class StatementBuilder {
             }
 
         }
+    }
+
+    // Objective: Get the table metadata include columns.
+    public static TableDefinition getTableDefinition(Connection connection, TableMetaData tableMetaData,
+                                                     List<String> keyColumns, List<String> nonKeyColumns) throws Exception {
+        // Initialize TableDefinition class
+        TableDefinition tableDefinition = TableDefinition.of(tableMetaData, List.of(), List.of(), List.of());
+
+        try(ResultSet resultSet = connection.getMetaData().getColumns(null, tableMetaData.getSchemaName(), tableMetaData.getTableName(), null)) {
+            // Loop constructs ColumnMetaData and add to the list -> for construct TableDefinition.
+            while (resultSet.next()) {
+                // Query required fields for initialize ColumnMetaData.
+                String columnName = resultSet.getString("COLUMN_NAME");
+                Integer dataType = resultSet.getInt("DATA_TYPE");
+                String dataTypeName = resultSet.getString("TYPE_NAME");
+                Integer position = resultSet.getInt("ORDINAL_POSITION");
+
+                // Checking queried fields is in list of given columns or not.
+                // Adding two objects for further use in binding value to statement.
+                if (keyColumns.contains(columnName)) {
+                    // Construct ColumnMetaData and add to list.
+                    tableDefinition.columns.add(ColumnMetaData.of(columnName, dataType, dataTypeName, position));
+                    tableDefinition.keyColumns.add(ColumnMetaData.of(columnName, dataType, dataTypeName, position));
+                } else if (nonKeyColumns.contains(columnName)) {
+                    tableDefinition.columns.add(ColumnMetaData.of(columnName, dataType, dataTypeName, position));
+                    tableDefinition.nonKeyColumns.add(ColumnMetaData.of(columnName, dataType, dataTypeName, position));
+                }
+            }
+        }
+        return tableDefinition;
     }
 
 }
