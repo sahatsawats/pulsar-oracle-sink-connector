@@ -1,6 +1,9 @@
 package com.shsw.pulsar.io.oracle;
 
-import lombok.*;
+import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 import java.sql.Connection;
@@ -109,7 +112,7 @@ public class StatementBuilder {
                 Integer position = resultSet.getInt("ORDINAL_POSITION");
 
                 // Checking queried fields is in list of given columns or not.
-                // Adding two objects for further use in binding value to statement.
+                // Adding two objects for further use in binding values to statement.
                 if (keyColumns.contains(columnName)) {
                     // Construct ColumnMetaData and add to list.
                     tableDefinition.columns.add(ColumnMetaData.of(columnName, dataType, dataTypeName, position));
@@ -120,7 +123,53 @@ public class StatementBuilder {
                 }
             }
         }
+
         return tableDefinition;
+    }
+
+    // TODO: Building Insert methods: upsert, insert, update
+    // Building Insert Statement
+    public String buildInsertStatement(TableDefinition tableDefinition) {
+        // String insert format: INSERT INTO TABLE_NAME(field1,...,fieldN) VALUES(?,...,?)
+        StringBuilder builder = new StringBuilder();
+
+        builder.append("INSERT INTO ");
+        builder.append(tableDefinition.tableMetaData.tableName);
+        builder.append("(");
+        tableDefinition.columns.forEach(columnName -> builder.append(columnName).append(","));
+        builder.deleteCharAt(-1);
+        builder.append(") VALUES (");
+        for (int i=0; i<(tableDefinition.columns.size() -1); i++) {
+            builder.append(("?, "));
+        }
+        builder.append("?)");
+
+        return builder.toString();
+    }
+
+    // Building Update Statement
+    public String buildUpdateStatement(TableDefinition tableDefinition) {
+        // String update format: UPDATE table_name SET column1 = ?, column2 = ?,.. columnN = ? WHERE keyColumn = ?
+        StringBuilder builder = new StringBuilder();
+
+        builder.append("UPDATE ");
+        builder.append(tableDefinition.tableMetaData.tableName);
+        builder.append(" SET ");
+
+        tableDefinition.columns.forEach(column -> builder.append(column).append(" = ?,"));
+        // Delete excesses comma
+        builder.deleteCharAt(-1);
+        builder.append("WHERE ");
+
+        if (tableDefinition.keyColumns.size() > 1) {
+            tableDefinition.keyColumns.forEach(pkColumn -> builder.append(pkColumn).append(" = ? AND "));
+            // Delete excesses AND operation
+            builder.delete(-4,-1);
+        } else {
+            tableDefinition.keyColumns.forEach(pkColumn -> builder.append(pkColumn).append("= ?"));
+        }
+
+        return builder.toString();
     }
 
 }
