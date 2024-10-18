@@ -127,7 +127,7 @@ public class StatementBuilder {
         return tableDefinition;
     }
 
-    // TODO: Building Insert methods: upsert, insert, update
+    // TODO: Building Insert methods: upsert
     // Building Insert Statement
     public String buildInsertStatement(TableDefinition tableDefinition) {
         // String insert format: INSERT INTO TABLE_NAME(field1,...,fieldN) VALUES(?,...,?)
@@ -161,9 +161,10 @@ public class StatementBuilder {
         builder.deleteCharAt(-1);
         builder.append("WHERE ");
 
+        // Checking composite key
         if (tableDefinition.keyColumns.size() > 1) {
             tableDefinition.keyColumns.forEach(pkColumn -> builder.append(pkColumn).append(" = ? AND "));
-            // Delete excesses AND operation
+            // Delete excesses AND operation, the last loop going to leave the unnecessary "AND " operation.
             builder.delete(-4,-1);
         } else {
             tableDefinition.keyColumns.forEach(pkColumn -> builder.append(pkColumn).append("= ?"));
