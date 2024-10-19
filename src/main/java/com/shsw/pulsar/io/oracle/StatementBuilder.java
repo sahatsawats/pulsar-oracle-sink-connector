@@ -129,17 +129,17 @@ public class StatementBuilder {
 
     // TODO: Building Insert methods: upsert
     // Building Insert Statement
-    public String buildInsertStatement(TableDefinition tableDefinition) {
+    public static String buildInsertStatement(TableDefinition tableDefinition) {
         // String insert format: INSERT INTO TABLE_NAME(field1,...,fieldN) VALUES(?,...,?)
         StringBuilder builder = new StringBuilder();
 
         builder.append("INSERT INTO ");
         builder.append(tableDefinition.tableMetaData.tableName);
         builder.append("(");
-        tableDefinition.columns.forEach(columnName -> builder.append(columnName).append(","));
-        builder.deleteCharAt(-1);
+        tableDefinition.columns.forEach(column -> builder.append(column.columnName).append(","));
+        builder.deleteCharAt(builder.length() - 1);
         builder.append(") VALUES (");
-        for (int i=0; i<(tableDefinition.columns.size() -1); i++) {
+        for (int i=0; i<(tableDefinition.columns.size()-1); i++) {
             builder.append(("?, "));
         }
         builder.append("?)");
@@ -148,7 +148,7 @@ public class StatementBuilder {
     }
 
     // Building Update Statement
-    public String buildUpdateStatement(TableDefinition tableDefinition) {
+    public static String buildUpdateStatement(TableDefinition tableDefinition) {
         // String update format: UPDATE table_name SET column1 = ?, column2 = ?,.. columnN = ? WHERE keyColumn = ?
         StringBuilder builder = new StringBuilder();
 
@@ -156,18 +156,18 @@ public class StatementBuilder {
         builder.append(tableDefinition.tableMetaData.tableName);
         builder.append(" SET ");
 
-        tableDefinition.columns.forEach(column -> builder.append(column).append(" = ?,"));
+        tableDefinition.nonKeyColumns.forEach(column -> builder.append(column.columnName).append(" = ?,"));
         // Delete excesses comma
-        builder.deleteCharAt(-1);
-        builder.append("WHERE ");
+        builder.deleteCharAt(builder.length() - 1);
+        builder.append(" WHERE ");
 
         // Checking composite key
         if (tableDefinition.keyColumns.size() > 1) {
-            tableDefinition.keyColumns.forEach(pkColumn -> builder.append(pkColumn).append(" = ? AND "));
+            tableDefinition.keyColumns.forEach(pkColumn -> builder.append(pkColumn.columnName).append(" = ? AND "));
             // Delete excesses AND operation, the last loop going to leave the unnecessary "AND " operation.
-            builder.delete(-4,-1);
+            builder.delete(builder.length()-4, builder.length()-1);
         } else {
-            tableDefinition.keyColumns.forEach(pkColumn -> builder.append(pkColumn).append("= ?"));
+            tableDefinition.keyColumns.forEach(pkColumn -> builder.append(pkColumn.columnName).append("= ?"));
         }
 
         return builder.toString();
