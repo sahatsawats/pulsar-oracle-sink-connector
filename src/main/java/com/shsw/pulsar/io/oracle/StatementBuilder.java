@@ -165,9 +165,9 @@ public class StatementBuilder {
         if (tableDefinition.keyColumns.size() > 1) {
             tableDefinition.keyColumns.forEach(pkColumn -> builder.append(pkColumn.columnName).append(" = ? AND "));
             // Delete excesses AND operation, the last loop going to leave the unnecessary "AND " operation.
-            builder.delete(builder.length()-4, builder.length()-1);
+            builder.delete(builder.length()-5, builder.length());
         } else {
-            tableDefinition.keyColumns.forEach(pkColumn -> builder.append(pkColumn.columnName).append("= ?"));
+            tableDefinition.keyColumns.forEach(pkColumn -> builder.append(pkColumn.columnName).append(" = ?"));
         }
 
         return builder.toString();
