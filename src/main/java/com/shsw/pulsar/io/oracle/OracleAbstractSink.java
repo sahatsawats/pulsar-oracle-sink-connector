@@ -1,16 +1,21 @@
 package com.shsw.pulsar.io.oracle;
 
-import java.sql.*;
-
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.sql.DriverManager;
+import java.sql.Statement;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-
-import java.util.*;
+import java.util.Deque;
+import java.util.Map;
+import java.util.List;
+import java.util.LinkedList;
+import java.util.Arrays;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.apache.pulsar.functions.api.Record;
 import org.apache.pulsar.io.core.Sink;
 import org.apache.pulsar.io.core.SinkContext;
@@ -43,7 +48,6 @@ public abstract class OracleAbstractSink<T> implements Sink<T> {
     public void open(Map<String, Object> config, SinkContext sinkContext) throws Exception {
         oracleConfigs = OracleSinkConfig.load(config);
 
-        // If one of these configuration is null --> Throws exception.
         if (oracleConfigs.getJdbcURL() == null) {
             throw new IllegalArgumentException("Required jdbc not set.");
         }
@@ -69,9 +73,9 @@ public abstract class OracleAbstractSink<T> implements Sink<T> {
         }
     }
 
-    /*
-    This method called when messages arrives.
-    You can decide how to write the data to destination service such as create a buffers, or real-time processing.
+    /**
+    * This method called when messages arrives.
+    * You can decide how to write the data to destination service such as create a buffers, or real-time processing.
      */
     @Override
     public void write(Record<T> record) {
@@ -89,20 +93,37 @@ public abstract class OracleAbstractSink<T> implements Sink<T> {
         }
     }
 
-    /*
-    Helper methods
-     */
-    // Create database connection.
+    @Override
+    public void close() throws Exception {
+        if (flushScheduleExecutor != null) {
+            flushScheduleExecutor.shutdown();
+            flushScheduleExecutor.awaitTermination(oracleConfigs.getTimeoutMS()*2, TimeUnit.MILLISECONDS);
+            flushScheduleExecutor = null;
+        }
+        if (preparedStatement != null) {
+            preparedStatement.close();
+        }
+        if (oracleConn != null && oracleConfigs.isUseTransaction()) {
+            oracleConn.commit();
+        }
+        if (oracleConn != null) {
+            oracleConn.close();
+            oracleConn = null;
+        }
+        log.info("Closed jdbc connection: {}", oracleConfigs.getJdbcURL());
+    }
+
     private void createOracleConnection() throws SQLException {
         oracleConn = DriverManager.getConnection(oracleConfigs.getJdbcURL(), oracleConfigs.getUser(), oracleConfigs.getPassword());
     }
 
-    // Initialize statement with given configurations.
+    /**
+     * Initials sql statement from configurations. Bind the results to preparedStatement variable. Support two types of statement: insert and update.
+     */
     private void initStatement() throws Exception {
         TableMetaData tableMetaData = StatementBuilder.getTableMetaData(oracleConn, oracleConfigs.getSchema(), oracleConfigs.getTable());
         tableDefinition = StatementBuilder.getTableDefinition(oracleConn, tableMetaData,
                 getListFromConfig(oracleConfigs.getKeyColumns()), getListFromConfig(oracleConfigs.getNonKeyColumns()));
-
 
         if (oracleConfigs.getInsertMode() == OracleSinkConfig.InsertMode.INSERT) {
             preparedStatement = oracleConn.prepareStatement(StatementBuilder.buildInsertStatement(tableDefinition));
@@ -111,20 +132,25 @@ public abstract class OracleAbstractSink<T> implements Sink<T> {
         } else {
             throw new IllegalArgumentException("Cannot match Insert mode, received: " + oracleConfigs.getInsertMode());
         }
-
-
     }
 
-
-    // Convert string from configuration file to list of strings with comma-delimiter.
     private List<String> getListFromConfig(String str) {
         return Arrays.stream(str.split(",")).toList();
     }
 
-    // Use to binding the incoming messages to preparedStatement.
+    /**
+     * Binding the record from pulsar to prepared statement
+     * @param preparedStatement the sql statement
+     * @param record the record of message from pulsar
+     * @throws Exception throw exceptions
+     */
     public abstract void bindValue(PreparedStatement preparedStatement, Record<T> record) throws Exception;
 
 
+    /**
+     * use to operate database execution. If batch enabled, binding the value from the record and adding to the queue, then call executeBatch method.
+     * If not, execute individual messages including acknowledge and commit.
+     */
     private void flush() {
         /*
         Logic1: check that the size of incoming messages (Records) more than 0
@@ -162,21 +188,15 @@ public abstract class OracleAbstractSink<T> implements Sink<T> {
 
             int count = 0;
             try {
-                // Get the template prepared statement
-                PreparedStatement bindStatement = preparedStatement;
-
                 for (Record<T> record : bufferList) {
-                    // Called bind method for binding record to statement
-                    bindValue(bindStatement, record);
-                    // Increment count integer to keep tracking.
+                    bindValue(preparedStatement, record);
                     count += 1;
-
                     // If batch enable -> add current statement to batch. If not, execute on each statement.
                     if (oracleConfigs.isUseJDBCBatch()) {
                         // Add current statement to queue.
-                        bindStatement.addBatch();
+                        preparedStatement.addBatch();
                     } else {
-                        bindStatement.execute();
+                        preparedStatement.execute();
                         // If transaction is not enable -> acknowledge each on record.
                         if (!oracleConfigs.isUseTransaction()) {
                             bufferList.removeFirst().ack();
@@ -184,8 +204,8 @@ public abstract class OracleAbstractSink<T> implements Sink<T> {
                     }
 
                     if (oracleConfigs.isUseJDBCBatch()) {
-                        log.debug("Execute batch with total {} statement", count );
-                        executeBatch(bufferList, bindStatement);
+                        log.debug("Execute batch with total {} statement", count);
+                        executeBatch(bufferList, preparedStatement);
                     } else if (oracleConfigs.isUseTransaction()) {
                         oracleConn.commit();
                         bufferList.forEach(Record::ack);
@@ -208,16 +228,21 @@ public abstract class OracleAbstractSink<T> implements Sink<T> {
             if (isNeedAnotherRound) {
                 flush();
             }
-
         } else {
             log.debug("Already in flush state with queue size: {}", incomingList.size());
         }
-
     }
 
-    // Execute statement in batch. Ack messages and if transaction is enabled -> commit. If got exception -> nack, rollback, and raise sql exception.
-    private void executeBatch(Deque<Record<T>> bufferList, PreparedStatement bindStatement) throws Exception {
-        final int[] results = bindStatement.executeBatch();
+    /**
+     * Execute sql statement in batch.
+     * If successful, commit the transaction (if enabled) and acknowledge all the messages.
+     * If catch the exception, rollback the transaction (if enabled) and negative acknowledge all the messages.
+     * @param bufferList the list of record from pulsar
+     * @param preparedStatement the prepared statement
+     * @throws Exception throws when failed to successfully execute the statement. rollback and negative acknowledgement all of messages
+     */
+    private void executeBatch(Deque<Record<T>> bufferList, PreparedStatement preparedStatement) throws Exception {
+        final int[] results = preparedStatement.executeBatch();
         int err_counts = 0;
 
         for (int result : results) {
@@ -244,6 +269,5 @@ public abstract class OracleAbstractSink<T> implements Sink<T> {
             // Throw this exception will be caught in flush() which will nack the messages.
             throw new SQLException(errorMsg);
         }
-
     }
 }
