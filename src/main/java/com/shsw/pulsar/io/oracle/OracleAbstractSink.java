@@ -1,9 +1,6 @@
 package com.shsw.pulsar.io.oracle;
 
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
-import java.sql.Connection;
+import java.sql.*;
 
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -163,12 +160,8 @@ public abstract class OracleAbstractSink<T> implements Sink<T> {
                 }
             }
 
-            long start = System.nanoTime();
             int count = 0;
-
             try {
-                // Holding statements
-                PreparedStatement currentBatch = null;
                 // Get the template prepared statement
                 PreparedStatement bindStatement = preparedStatement;
 
@@ -191,7 +184,8 @@ public abstract class OracleAbstractSink<T> implements Sink<T> {
                     }
 
                     if (oracleConfigs.isUseJDBCBatch()) {
-                        executeBatch(bufferList, bindStatement, count, start);
+                        log.debug("Execute batch with total {} statement", count );
+                        executeBatch(bufferList, bindStatement);
                     } else if (oracleConfigs.isUseTransaction()) {
                         oracleConn.commit();
                         bufferList.forEach(Record::ack);
@@ -221,12 +215,35 @@ public abstract class OracleAbstractSink<T> implements Sink<T> {
 
     }
 
+    // Execute statement in batch. Ack messages and if transaction is enabled -> commit. If got exception -> nack, rollback, and raise sql exception.
+    private void executeBatch(Deque<Record<T>> bufferList, PreparedStatement bindStatement) throws Exception {
+        final int[] results = bindStatement.executeBatch();
+        int err_counts = 0;
 
-    private void executeBatch(Deque<Record<T>> bufferList, PreparedStatement preparedStatement, int count, long start) throws SQLException {
+        for (int result : results) {
+            if (result == Statement.EXECUTE_FAILED) {
+                err_counts += 1;
+            }
+        }
 
-    }
-
-    private void executeBatch(Deque<Record<T>> bufferList, PreparedStatement preparedStatement) throws Exception {
+        if (err_counts > 0) {
+            if (oracleConfigs.isUseTransaction()) {
+                oracleConn.commit();
+            }
+            for (int ignored : results) {
+                bufferList.removeFirst().ack();
+            }
+        } else {
+            if (oracleConfigs.isUseTransaction()) {
+                oracleConn.rollback();
+            }
+            for (int ignored : results) {
+                bufferList.removeFirst().fail();
+            }
+            String errorMsg = "Batch Execute failed with total error {} times" + err_counts;
+            // Throw this exception will be caught in flush() which will nack the messages.
+            throw new SQLException(errorMsg);
+        }
 
     }
 }
