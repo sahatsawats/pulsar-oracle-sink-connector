@@ -77,7 +77,7 @@ public abstract class OracleAbstractSink<T> implements Sink<T> {
     You can decide how to write the data to destination service such as create a buffers, or real-time processing.
      */
     @Override
-    public void write(Record<T> record) throws Exception {
+    public void write(Record<T> record) {
         // Declare variable to holding the incoming size.
         int preBufferSize;
         synchronized (incomingList) {
@@ -100,7 +100,7 @@ public abstract class OracleAbstractSink<T> implements Sink<T> {
         oracleConn = DriverManager.getConnection(oracleConfigs.getJdbcURL(), oracleConfigs.getUser(), oracleConfigs.getPassword());
     }
 
-    // Objective: Initialize statement with given configurations.
+    // Initialize statement with given configurations.
     private void initStatement() throws Exception {
         TableMetaData tableMetaData = StatementBuilder.getTableMetaData(oracleConn, oracleConfigs.getSchema(), oracleConfigs.getTable());
         tableDefinition = StatementBuilder.getTableDefinition(oracleConn, tableMetaData,
@@ -119,31 +119,31 @@ public abstract class OracleAbstractSink<T> implements Sink<T> {
     }
 
 
-    // Objective: Convert string from configuration file to list of strings with comma-delimiter.
+    // Convert string from configuration file to list of strings with comma-delimiter.
     private List<String> getListFromConfig(String str) {
         return Arrays.stream(str.split(",")).toList();
     }
 
-    // Objective: Use to binding the incoming messages to preparedStatement.
-    public abstract void bindValue(PreparedStatement preparedStatement) throws Exception;
+    // Use to binding the incoming messages to preparedStatement.
+    public abstract void bindValue(PreparedStatement preparedStatement, Record<T> record) throws Exception;
 
 
-    /*
-    Flush service
-     */
     private void flush() {
-        // Logic1: Check that the size of incoming messages (Records) more than 0
-        // Logic2: Checking the state of flushing, if current value is "false" and successfully update to true -> return true, either false.
+        /*
+        Logic1: check that the size of incoming messages (Records) more than 0
+        Logic2: checking the state of flushing, if current value is "false" and successfully update to true -> return true, either false.
+         */
         if (incomingList.size() > 0 && isFlushing.compareAndSet(false, true)) {
-            boolean isNeedAnotherRound;
+            boolean isNeedAnotherRound = false;
 
-            // Idea: Unloading the incoming messages to bufferList
             final Deque<Record<T>> bufferList = new LinkedList<>();
 
             synchronized (incomingList) {
-                /*
-                If enable batch (batch size > 0) -> find the smaller one between incomingList and batchSize (not overdo)
-                If batch size = 0 -> process all the record in incomingList
+                // actualBatchSize required for loop dequeue record in incomingList.
+                 /*
+                 This logic required for scheduling the another flush. for following scenario:
+                 Normal scenario: (incomingList < batchSize) -> use incomingList size to prevents out of bonds.
+                 Exceed batch size scenario: (incomingList > batchSize) -> use batchSize, this will trigger the 2nd flush later.
                  */
                 final int actualBatchSize;
                 if (batchSize > 0) {
@@ -153,15 +153,80 @@ public abstract class OracleAbstractSink<T> implements Sink<T> {
                 }
 
                 // Swap the record to buffer list
-                for (int i=0; i < actualBatchSize; i++) {
+                for (int i = 0; i < actualBatchSize; i++) {
                     bufferList.add(incomingList.removeFirst());
                 }
 
-                // Require to flush another round?, If incoming list is not empty and meet the batch size:
+                // If batch enabled, incoming list is not empty and meet the batch size (Exceed scenario) -> require 2nd flush.
                 if (batchSize > 0 && !incomingList.isEmpty() && incomingList.size() >= batchSize) {
                     isNeedAnotherRound = true;
                 }
             }
+
+            long start = System.nanoTime();
+            int count = 0;
+
+            try {
+                // Holding statements
+                PreparedStatement currentBatch = null;
+                // Get the template prepared statement
+                PreparedStatement bindStatement = preparedStatement;
+
+                for (Record<T> record : bufferList) {
+                    // Called bind method for binding record to statement
+                    bindValue(bindStatement, record);
+                    // Increment count integer to keep tracking.
+                    count += 1;
+
+                    // If batch enable -> add current statement to batch. If not, execute on each statement.
+                    if (oracleConfigs.isUseJDBCBatch()) {
+                        // Add current statement to queue.
+                        bindStatement.addBatch();
+                    } else {
+                        bindStatement.execute();
+                        // If transaction is not enable -> acknowledge each on record.
+                        if (!oracleConfigs.isUseTransaction()) {
+                            bufferList.removeFirst().ack();
+                        }
+                    }
+
+                    if (oracleConfigs.isUseJDBCBatch()) {
+                        executeBatch(bufferList, bindStatement, count, start);
+                    } else if (oracleConfigs.isUseTransaction()) {
+                        oracleConn.commit();
+                        bufferList.forEach(Record::ack);
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Got exception {} - {}", e.getClass().getName(), e.getMessage());
+                // Negative acknowledge
+                bufferList.forEach(Record::fail);
+                try {
+                    if (oracleConfigs.isUseTransaction()) {
+                        oracleConn.rollback();
+                    }
+                } catch (Exception ee) {
+                    throw new RuntimeException(ee);
+                }
+            }
+
+            isFlushing.set(false);
+            if (isNeedAnotherRound) {
+                flush();
+            }
+
+        } else {
+            log.debug("Already in flush state with queue size: {}", incomingList.size());
         }
+
+    }
+
+
+    private void executeBatch(Deque<Record<T>> bufferList, PreparedStatement preparedStatement, int count, long start) throws SQLException {
+
+    }
+
+    private void executeBatch(Deque<Record<T>> bufferList, PreparedStatement preparedStatement) throws Exception {
+
     }
 }
