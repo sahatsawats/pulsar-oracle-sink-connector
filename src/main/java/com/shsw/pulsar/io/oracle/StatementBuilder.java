@@ -71,10 +71,15 @@ public class StatementBuilder {
 
     }
 
-
-    // Objective: Query metadata and check that is match with provided data.
+    /**
+     * Query the metadata of table from given schema and table name.
+     * @param connection the connection to database
+     * @param schema the schema name that contain the table
+     * @param table the table name
+     * @return Instance of TableMetaData
+     * @throws Exception if unable to find table
+     */
     public static TableMetaData getTableMetaData(Connection connection, String schema, String table) throws Exception {
-        // Query metadata with given schema and table name.
         try(ResultSet resultSet = connection.getMetaData().getTables(null,
                 schema,
                 table,
@@ -96,6 +101,15 @@ public class StatementBuilder {
         }
     }
 
+    /**
+     * Query the metadata of each column from tableMetaData, map queried results compare with given data.
+     * @param connection the connection to database
+     * @param tableMetaData the instance of TableMetaData
+     * @param keyColumns the given key columns name from sink configuration
+     * @param nonKeyColumns the given non-key columns name from sink configuration
+     * @return Instance of TableDefinition that contain metadata of each given columns
+     * @throws Exception if unable to find the columns metadata with given schema and table name
+     */
     // Objective: Get the table metadata include columns.
     public static TableDefinition getTableDefinition(Connection connection, TableMetaData tableMetaData,
                                                      List<String> keyColumns, List<String> nonKeyColumns) throws Exception {
@@ -127,8 +141,11 @@ public class StatementBuilder {
         return tableDefinition;
     }
 
-    // TODO: Building Insert methods: upsert
-    // Building Insert Statement
+    /**
+     * Building the insert statement with given TableDefinition.
+     * @param tableDefinition the TableDefinition that contains metadata of table and columns
+     * @return insert statement
+     */
     public static String buildInsertStatement(TableDefinition tableDefinition) {
         // String insert format: INSERT INTO TABLE_NAME(field1,...,fieldN) VALUES(?,...,?)
         StringBuilder builder = new StringBuilder();
@@ -147,7 +164,11 @@ public class StatementBuilder {
         return builder.toString();
     }
 
-    // Building Update Statement
+    /**
+     * Building the insert statement with given TableDefinition.
+     * @param tableDefinition the TableDefinition that contains metadata of table and columns
+     * @return update statement
+     */
     public static String buildUpdateStatement(TableDefinition tableDefinition) {
         // String update format: UPDATE table_name SET column1 = ?, column2 = ?,.. columnN = ? WHERE keyColumn = ?
         StringBuilder builder = new StringBuilder();
