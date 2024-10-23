@@ -5,12 +5,10 @@ import org.testng.annotations.Test;
 import com.shsw.pulsar.io.oracle.core.StatementBuilder.ColumnMetaData;
 import com.shsw.pulsar.io.oracle.core.StatementBuilder.TableMetaData;
 import com.shsw.pulsar.io.oracle.core.StatementBuilder.TableDefinition;
+import com.shsw.pulsar.io.oracle.core.StatementBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.mockito.Mockito.mock;
-import static org.testng.Assert.*;
 
 public class StatementBuilderTest {
 
