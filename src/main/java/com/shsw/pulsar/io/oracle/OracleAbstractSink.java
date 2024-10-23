@@ -52,6 +52,10 @@ public abstract class OracleAbstractSink<T> implements Sink<T> {
             throw new IllegalArgumentException("Required jdbc not set.");
         }
 
+        if (oracleConfigs.isUseJDBCBatch()) {
+            oracleConfigs.validateBatch();
+        }
+
         createOracleConnection();
         // In transaction mode, autocommit have to be disable.
         oracleConn.setAutoCommit(!oracleConfigs.isUseTransaction());
