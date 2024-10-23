@@ -91,10 +91,10 @@ public class OracleSinkConfig implements Serializable {
     private InsertMode insertMode = InsertMode.INSERT;
 
     @FieldDoc(
-            defaultValue = "",
-            help = "timeout in ms"
+            defaultValue = "500",
+            help = "Enable batch mode by time. After timeout, the operations queue will be flushed."
     )
-    private Integer timeoutMS = 5000;
+    private Integer timeoutMS = 500;
 
 
     public enum InsertMode {
@@ -112,5 +112,10 @@ public class OracleSinkConfig implements Serializable {
         return mapper.readValue(new ObjectMapper().writeValueAsString(config), OracleSinkConfig.class);
     }
 
+    public void validateBatch() {
+        if (timeoutMS <= 0 && batchSize <= 0) {
+            throw new IllegalArgumentException("timeoutMs and batchSize must be set to a positive value.");
+        }
+    }
 
 }
