@@ -28,7 +28,7 @@ public abstract class OracleAbstractSink<T> implements Sink<T> {
     private Connection oracleConn;
     private PreparedStatement preparedStatement;
     OracleSinkConfig oracleConfigs;
-    TableDefinition tableDefinition;
+    protected TableDefinition tableDefinition;
 
     // Flush parameters
     // Deque is a queue that can be dequeue an item from both sides
