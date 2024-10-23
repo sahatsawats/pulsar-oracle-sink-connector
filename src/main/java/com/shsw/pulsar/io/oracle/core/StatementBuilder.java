@@ -1,4 +1,4 @@
-package com.shsw.pulsar.io.oracle;
+package com.shsw.pulsar.io.oracle.core;
 
 import lombok.Data;
 import lombok.Getter;

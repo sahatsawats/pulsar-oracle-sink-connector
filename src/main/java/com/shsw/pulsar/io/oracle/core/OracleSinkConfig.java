@@ -1,4 +1,4 @@
-package com.shsw.pulsar.io.oracle;
+package com.shsw.pulsar.io.oracle.core;
 
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
