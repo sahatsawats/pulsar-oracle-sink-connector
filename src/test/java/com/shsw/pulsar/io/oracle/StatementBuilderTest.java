@@ -14,7 +14,10 @@ import static org.testng.Assert.*;
 
 public class StatementBuilderTest {
 
-
+    /**
+     * Tests the functionality of building insert statement.
+     * This test verifies that the method correctly return the insert statement based on given metadata.
+     */
     @Test
     public void buildInsertStatementTest() {
         List<ColumnMetaData> columnMetaDataList = new ArrayList<>();
@@ -31,6 +34,10 @@ public class StatementBuilderTest {
         Assert.assertEquals(insertStatement, targetInsertStatement);
     }
 
+    /**
+     * Tests the functionality of building update statement with one key column.
+     * This test verifies that the method correctly return the update statement based on given metadata.
+     */
     @Test
     public void buildUpdateStatementOneKeyTest() {
         List<ColumnMetaData> columnMetaDataList = new ArrayList<>();
@@ -47,6 +54,10 @@ public class StatementBuilderTest {
         Assert.assertEquals(updateStatement, targetUpdateStatement);
     }
 
+    /**
+     * Tests the functionality of building update statement with multiple key columns.
+     * This test verifies that the method correctly return the update statement based on given metadata.
+     */
     @Test
     public void buildUpdateStatementMultipleKeyTest() {
         List<ColumnMetaData> columnMetaDataList = new ArrayList<>();
