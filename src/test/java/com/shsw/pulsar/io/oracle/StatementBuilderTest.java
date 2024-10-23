@@ -2,9 +2,9 @@ package com.shsw.pulsar.io.oracle;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
-import com.shsw.pulsar.io.oracle.StatementBuilder.ColumnMetaData;
-import com.shsw.pulsar.io.oracle.StatementBuilder.TableMetaData;
-import com.shsw.pulsar.io.oracle.StatementBuilder.TableDefinition;
+import com.shsw.pulsar.io.oracle.core.StatementBuilder.ColumnMetaData;
+import com.shsw.pulsar.io.oracle.core.StatementBuilder.TableMetaData;
+import com.shsw.pulsar.io.oracle.core.StatementBuilder.TableDefinition;
 
 import java.util.ArrayList;
 import java.util.List;
