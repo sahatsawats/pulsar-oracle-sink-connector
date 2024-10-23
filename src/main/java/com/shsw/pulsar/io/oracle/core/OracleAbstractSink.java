@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.pulsar.functions.api.Record;
 import org.apache.pulsar.io.core.Sink;
 import org.apache.pulsar.io.core.SinkContext;
-import com.shsw.pulsar.io.oracle.StatementBuilder.*;
+import com.shsw.pulsar.io.oracle.core.StatementBuilder.*;
 
 
 @Slf4j
