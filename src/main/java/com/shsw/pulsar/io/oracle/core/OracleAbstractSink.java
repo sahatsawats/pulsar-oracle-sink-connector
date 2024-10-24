@@ -27,7 +27,7 @@ public abstract class OracleAbstractSink<T> implements Sink<T> {
     @Getter
     private Connection oracleConn;
     private PreparedStatement preparedStatement;
-    OracleSinkConfig oracleConfigs;
+    protected OracleSinkConfig oracleConfigs;
     protected TableDefinition tableDefinition;
 
     // Flush parameters
