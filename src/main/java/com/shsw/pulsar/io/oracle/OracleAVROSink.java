@@ -16,6 +16,7 @@ import java.util.*;
 
 public class OracleAVROSink extends OracleAbstractSink<GenericObject> {
 
+
     @Override
     public void bindValue(PreparedStatement preparedStatement, Record<GenericObject> record) throws Exception {
         // Deserialize record to hashmap field and value.
@@ -39,17 +40,20 @@ public class OracleAVROSink extends OracleAbstractSink<GenericObject> {
             setStatement(preparedStatement, index, value);
             index++;
         }
-
     }
 
-    // TODO: Make a object to holding the record f
+    /**
+     * The function that get the avro-schema from message, grep the field name and value then bind it together.
+     * @param record a message from pulsar
+     * @return a hash-map of field name and value
+     */
     private Map<String, Object> deserializeRecord(Record<GenericObject> record) {
         Map<String, Object> deserializedAVRO = new HashMap<>();
 
         GenericRecord avroNode = (GenericRecord) record.getValue().getNativeObject();
         for (Schema.Field field : avroNode.getSchema().getFields()) {
+
             Object value = switch (field.getProp("logicalType")) {
-                // TODO: Add timestamp
                 case "date" -> convertToSQLDate((int) avroNode.get(field.toString()));
                 case "decimal" -> convertToBigDecimal((byte[]) avroNode.get(field.toString()), Integer.parseInt(field.getProp("scale")));
                 // for non-logical types
@@ -98,7 +102,7 @@ public class OracleAVROSink extends OracleAbstractSink<GenericObject> {
      * @param avroDate the integer that contains date.
      * @return Date value
      */
-    private Date convertToSQLDate(int avroDate) {
+    protected static Date convertToSQLDate(int avroDate) {
         LocalDate localDate = LocalDate.ofEpochDay(avroDate);
         return Date.valueOf(localDate);
     }
@@ -109,7 +113,7 @@ public class OracleAVROSink extends OracleAbstractSink<GenericObject> {
      * @param scale the scale of decimal position
      * @return BigDecimal value
      */
-    private BigDecimal convertToBigDecimal(byte[] decimalBytes, int scale) {
+    protected static BigDecimal convertToBigDecimal(byte[] decimalBytes, int scale) {
         BigInteger unscaledValue = new BigInteger(decimalBytes);
         return new BigDecimal(unscaledValue, scale);
     }
