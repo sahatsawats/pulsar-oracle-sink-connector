@@ -143,7 +143,7 @@ public abstract class OracleAbstractSink<T> implements Sink<T> {
     }
 
     /**
-     * Binding the record from pulsar to prepared statement
+     * Binding the record from pulsar to prepared statement, execute when execute flush method.
      * @param preparedStatement the sql statement
      * @param record the record of message from pulsar
      * @throws Exception throw exceptions
