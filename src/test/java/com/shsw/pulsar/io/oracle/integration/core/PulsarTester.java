@@ -12,7 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Getter
-public abstract class PulsarSinkTester<ServiceContainerT extends GenericContainer<?>> {
+public abstract class PulsarTester<ServiceContainerT extends GenericContainer<?>> {
     protected final Network sharedNetwork = Network.newNetwork();
     protected final String networkAlias;
     protected final String sinkArchive;
@@ -21,7 +21,7 @@ public abstract class PulsarSinkTester<ServiceContainerT extends GenericContaine
     protected GenericContainer<?> pulsarContainer;
     protected ServiceContainerT serviceContainer;
 
-    public PulsarSinkTester(String networkAlias, String sinkArchive, String sinkClassName) {
+    public PulsarTester(String networkAlias, String sinkArchive, String sinkClassName) {
         this.networkAlias = networkAlias;
         this.sinkArchive = sinkArchive;
         this.sinkClassName = sinkClassName;
