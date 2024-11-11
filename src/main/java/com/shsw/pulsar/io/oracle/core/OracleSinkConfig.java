@@ -54,7 +54,7 @@ public class OracleSinkConfig implements Serializable {
 
     @FieldDoc(
             defaultValue = "",
-            help = "A set of PK name which define as list. for example: [PK1,PK2]"
+            help = "A set of PK name which define as list. for example: \"PK1,PK2\""
     )
     private String keyColumns;
 
