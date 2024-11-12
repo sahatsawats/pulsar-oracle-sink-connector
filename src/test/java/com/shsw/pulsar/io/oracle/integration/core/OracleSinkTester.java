@@ -23,7 +23,7 @@ import java.util.stream.Stream;
 @Slf4j
 public abstract class OracleSinkTester<T> extends PulsarTester<OracleContainer> {
     protected Class<T> tClass;
-    private Connection connection;
+    protected Connection connection;
     protected final String tableName;
 
     public OracleSinkTester(String sinkArchive, String className, String tableName, Class<T> tClass) {
