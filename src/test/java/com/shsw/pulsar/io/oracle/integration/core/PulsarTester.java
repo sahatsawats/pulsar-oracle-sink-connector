@@ -9,6 +9,7 @@ import org.testcontainers.utility.DockerImageName;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @Getter
@@ -57,7 +58,7 @@ public abstract class PulsarTester<ServiceContainerT extends GenericContainer<?>
      * A method to validate the results
      * @param results is a key-value of produced value
      */
-    public abstract void validateSinkResult(Map<String, Object> results);
+    public abstract void validateSinkResult(List<Map<String, Object>> results);
 
     /**
      * A method that used to initialize pulsar service and sink service.
@@ -78,12 +79,12 @@ public abstract class PulsarTester<ServiceContainerT extends GenericContainer<?>
 
     /**
      * An abstract method for produce messages
-     * @param numMessage number of messages that will produce
+     * @param directoryPath a name of directory contains one or more predefined-data test files
      * @param inputTopicName a name of topic that produced
      * @param client a pulsar client that connect to container
      * @return hashmap of messages, use for validation
      */
-    public abstract LinkedHashMap<String, Object> produceMessages(int numMessage, String inputTopicName, PulsarClient client) throws Exception;
+    public abstract List<HashMap<String, Object>> produceMessages(String directoryPath, String inputTopicName, PulsarClient client) throws Exception;
 
     /**
      * A method that use for close the container services
