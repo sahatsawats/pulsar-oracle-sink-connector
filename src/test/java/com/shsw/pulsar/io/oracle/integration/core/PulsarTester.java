@@ -52,7 +52,7 @@ public abstract class PulsarTester<ServiceContainerT extends GenericContainer<?>
     /**
      * A preparation method for sink container (service), used for create a necessary compartment such as configurations, connection, tables,...
      */
-    public abstract void prepareSink(String keyColumns, String nonKeyColumns) throws Exception;
+    public abstract void prepareSink() throws Exception;
 
     /**
      * A method to validate the results
@@ -67,6 +67,8 @@ public abstract class PulsarTester<ServiceContainerT extends GenericContainer<?>
     public void startContainerServices(String dockerImageName) {
         this.serviceContainer = createContainerService();
         this.pulsarContainer = createPulsarContainerService(dockerImageName);
+        this.serviceContainer.start();
+        this.pulsarContainer.start();
     }
 
     /**
