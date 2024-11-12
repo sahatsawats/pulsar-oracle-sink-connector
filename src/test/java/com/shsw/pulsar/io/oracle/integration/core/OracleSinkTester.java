@@ -1,16 +1,24 @@
 package com.shsw.pulsar.io.oracle.integration.core;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shsw.pulsar.io.oracle.integration.model.ModelTestI;
 import lombok.extern.slf4j.Slf4j;
 import org.testcontainers.oracle.OracleContainer;
 
+import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.Field;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.SecureRandom;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Slf4j
 public abstract class OracleSinkTester<T> extends PulsarTester<OracleContainer> {
@@ -112,15 +120,17 @@ public abstract class OracleSinkTester<T> extends PulsarTester<OracleContainer> 
         return Arrays.stream(str.split(",")).toList();
     }
 
-    protected static String getRandomString(int length) {
-        String CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        SecureRandom random = new SecureRandom();
-        StringBuilder sb = new StringBuilder(length);
-        for (int i = 0; i < length; i++) {
-            int index = random.nextInt(CHARACTERS.length());
-            sb.append(CHARACTERS.charAt(index));
+    public List<String> listTestFile(String dirPath) throws IOException {
+        try (Stream<Path> paths = Files.list(Paths.get(dirPath))) {
+            return paths.filter(Files::isRegularFile)
+                    .map(Path::toString)
+                    .collect(Collectors.toList());
         }
-        return sb.toString();
+    }
+
+    public T loadTestData(String filePath) throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        return mapper.readValue(new File(filePath), tClass);
     }
 
 }
