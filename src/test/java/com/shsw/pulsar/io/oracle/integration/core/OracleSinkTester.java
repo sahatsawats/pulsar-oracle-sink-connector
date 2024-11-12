@@ -24,7 +24,7 @@ import java.util.stream.Stream;
 public abstract class OracleSinkTester<T> extends PulsarTester<OracleContainer> {
     protected Class<T> tClass;
     private Connection connection;
-    private final String tableName;
+    protected final String tableName;
 
     public OracleSinkTester(String sinkArchive, String className, String tableName, Class<T> tClass) {
         super("oracle", sinkArchive, className);
