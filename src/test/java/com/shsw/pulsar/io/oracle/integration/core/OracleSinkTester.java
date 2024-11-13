@@ -36,10 +36,12 @@ public class OracleSinkTester<T> extends PulsarTester<OracleContainer> {
     protected String keyColumns;
     protected String nonKeyColumns;
     protected String orderColumn;
+    protected String createStatement;
 
-    public OracleSinkTester(String sinkArchive, String className, String tableName) {
+    public OracleSinkTester(String sinkArchive, String className, String tableName, Class<T> tClass) {
         super("oracle", sinkArchive, className);
         this.tableName = tableName;
+        this.tClass = tClass;
     }
 
     /**
@@ -68,7 +70,7 @@ public class OracleSinkTester<T> extends PulsarTester<OracleContainer> {
 
     @Override
     protected OracleContainer createContainerService() {
-        return (OracleContainer) new OracleContainer("gvenzl/oracle-free:23.4-slim-faststart")
+        return (OracleContainer) new OracleContainer("gvenzl/oracle-free:slim")
                 .withStartupTimeout(Duration.ofMinutes(3))
                 .withUsername("tester")
                 .withPassword("test-pwd")
@@ -94,7 +96,7 @@ public class OracleSinkTester<T> extends PulsarTester<OracleContainer> {
         connection = DriverManager.getConnection(jdbcUrl, username, password);
         log.info("get connection: {}, jdbcUrl: {}", connection, jdbcUrl);
         // Get the statement method based on table structure.
-        String createTableStatement = setCreateTableStatement(tableName, keyColumns);
+        String createTableStatement = this.createStatement;
         int ret = connection.createStatement().executeUpdate(createTableStatement);
         log.info("created table in jdbc: {}, return value: {}", createTableStatement, ret);
     }
@@ -179,41 +181,10 @@ public class OracleSinkTester<T> extends PulsarTester<OracleContainer> {
 
     /**
      * A method that used to define the structure of test table based on given class
-     * @param tableName is name of test table
-     * @param pkColumns is string of key columns
-     * @return a string of create table statement
+     * @param createStatement is given statement provided by user
      */
-    protected String setCreateTableStatement(String tableName, String pkColumns) {
-        List<String> pkList = getListFromConfig(pkColumns);
-        StringBuilder statement = new StringBuilder();
-        // CREATE TABLE table_name(
-        statement.append("CREATE TABLE ").append(tableName).append("(");
-        // CREATE TABLE table_name(field1,field2,field3,
-        for (Field field : tClass.getDeclaredFields()) {
-            statement.append(field.getName());
-            statement.append(",");
-        }
-        // CREATE TABLE table_name(field1,field2,field3
-        statement.deleteCharAt(statement.length() - 1);
-        // CREATE TABLE table_name(field1,field2,field3) PRIMARY KEY (
-        statement.append(") PRIMARY KEY (");
-        // If primary key more than 1 (composite key)
-        if (pkList.size() > 1) {
-            for (String key : pkList) {
-                statement.append(key);
-                statement.append(",");
-            }
-            statement.deleteCharAt(statement.length() - 1);
-        } else {
-            statement.append(pkList.get(0));
-        }
-        statement.append("))");
-
-        return statement.toString();
-    }
-
-    private List<String> getListFromConfig(String str) {
-        return Arrays.stream(str.split(",")).toList();
+    public void setCreateTableStatement(String createStatement) {
+        this.createStatement = createStatement;
     }
 
     public List<String> listTestFile(String dirPath) throws IOException {
