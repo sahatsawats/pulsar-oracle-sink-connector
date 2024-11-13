@@ -4,6 +4,7 @@ import lombok.Getter;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
+import org.testcontainers.containers.PulsarContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import java.time.Duration;
@@ -40,13 +41,14 @@ public abstract class PulsarTester<ServiceContainerT extends GenericContainer<?>
      * @param imageName image name of pulsar
      * @return pulsar container
      */
-    protected GenericContainer<?> createPulsarContainerService(String imageName) {
-        return new GenericContainer<>(DockerImageName.parse(imageName))
+    protected PulsarContainer createPulsarContainerService(String imageName) {
+        return new PulsarContainer(DockerImageName.parse(imageName))
                 .withStartupTimeout(Duration.ofMinutes(3))
                 .withExposedPorts(6650)
                 .withExposedPorts(8080)
                 .withNetwork(sharedNetwork)
-                .withNetworkAliases("pulsar");
+                .withNetworkAliases("pulsar")
+                .withFunctionsWorker();
     }
 
     /**
