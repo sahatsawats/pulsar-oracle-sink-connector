@@ -4,9 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shsw.pulsar.io.oracle.integration.model.ModelTestI;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.Schema;
+import org.testcontainers.containers.Container;
+import org.testcontainers.containers.output.OutputFrame;
 import org.testcontainers.oracle.OracleContainer;
 
 import java.io.File;
@@ -81,11 +84,15 @@ public class OracleSinkTester<T> extends PulsarTester<OracleContainer> {
 
     @Override
     public void prepareSink() throws Exception {
+        // for internal communication in shared network
+        String jdbcUrlInternal = "jdbc:oracle:thin:@oracle:1521/freepdb1";
+        // for external connection (from local to container)
         String jdbcUrl = serviceContainer.getJdbcUrl();
         String username = serviceContainer.getUsername();
         String password = serviceContainer.getPassword();
+
         // Define sink configurations based on OracleSinkConfig class.
-        sinkConfig.put("jdbcURL", jdbcUrl);
+        sinkConfig.put("jdbcURL", jdbcUrlInternal);
         sinkConfig.put("user", username);
         sinkConfig.put("password", password);
         sinkConfig.put("table", tableName);
@@ -119,9 +126,14 @@ public class OracleSinkTester<T> extends PulsarTester<OracleContainer> {
 
         ResultSet rs;
         try {
-            Thread.sleep(1000);
+            Thread.sleep(2000);
             PreparedStatement statement = connection.prepareStatement(queryStatement);
             rs = statement.executeQuery();
+
+            if (!rs.next()) {
+                Container.ExecResult functionLog = pulsarContainer.execInContainer("sh", "-c", "cat logs//functions/public/default/oracle-sink-tester/oracle-sink-tester-0.log");
+                fail("Got empty query from oracle database: \n" + functionLog);
+            }
 
             int index = 0;
             while (rs.next()) {
@@ -129,6 +141,10 @@ public class OracleSinkTester<T> extends PulsarTester<OracleContainer> {
                 Map<String, Object> result = results.get(index);
                 // Loop through all key, assert equal the query object with given key name.
                 for (String key : result.keySet()) {
+                    if (key == null) {
+                        fail("Got key result null.");
+                    }
+                    log.info("Given: {}, Received: {}", result.get(key), rs.getObject(key));
                     assertEquals(result.get(key), rs.getObject(key));
                 }
                 index++;
@@ -150,7 +166,8 @@ public class OracleSinkTester<T> extends PulsarTester<OracleContainer> {
         for (String path : filePaths) {
             // load .json file and map to POJO class
             T payload = loadTestData(path);
-            producer.newMessage().value(payload).send();
+            MessageId messageId = producer.newMessage().value(payload).send();
+            log.info("Send message with messageId: {}", messageId);
 
             Map<String, Object> messageLog = new HashMap<>();
 
