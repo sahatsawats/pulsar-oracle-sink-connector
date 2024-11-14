@@ -140,8 +140,8 @@ public class OracleSinkTester<T> extends PulsarTester<OracleContainer> {
     }
 
     @Override
-    public List<HashMap<String, Object>> produceMessages(String directoryPath, String inputTopicName, PulsarClient client) throws Exception {
-        List<HashMap<String, Object>> messageLogs = new ArrayList<>();
+    public List<Map<String, Object>> produceMessages(String directoryPath, String inputTopicName, PulsarClient client) throws Exception {
+        List<Map<String, Object>> messageLogs = new ArrayList<>();
 
         @Cleanup
         Producer<T> producer = client.newProducer(Schema.AVRO(tClass)).topic(inputTopicName).create();
@@ -152,7 +152,7 @@ public class OracleSinkTester<T> extends PulsarTester<OracleContainer> {
             T payload = loadTestData(path);
             producer.newMessage().value(payload).send();
 
-            HashMap<String, Object> messageLog = new HashMap<>();
+            Map<String, Object> messageLog = new HashMap<>();
 
             for (Field field : payload.getClass().getDeclaredFields()) {
                 field.setAccessible(true);
