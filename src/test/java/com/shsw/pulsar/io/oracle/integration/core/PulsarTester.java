@@ -44,8 +44,7 @@ public abstract class PulsarTester<ServiceContainerT extends GenericContainer<?>
     protected PulsarContainer createPulsarContainerService(String imageName) {
         return new PulsarContainer(DockerImageName.parse(imageName))
                 .withStartupTimeout(Duration.ofMinutes(3))
-                .withExposedPorts(6650)
-                .withExposedPorts(8080)
+                .withExposedPorts(6650, 8080)
                 .withNetwork(sharedNetwork)
                 .withNetworkAliases("pulsar")
                 .withFunctionsWorker();
@@ -88,7 +87,7 @@ public abstract class PulsarTester<ServiceContainerT extends GenericContainer<?>
      * @param client a pulsar client that connect to container
      * @return hashmap of messages, use for validation
      */
-    public abstract List<HashMap<String, Object>> produceMessages(String directoryPath, String inputTopicName, PulsarClient client) throws Exception;
+    public abstract List<Map<String, Object>> produceMessages(String directoryPath, String inputTopicName, PulsarClient client) throws Exception;
 
     /**
      * A method that use for close the container services
