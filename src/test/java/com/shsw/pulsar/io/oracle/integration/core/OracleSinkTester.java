@@ -9,7 +9,6 @@ import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.Schema;
 import org.testcontainers.containers.Container;
-import org.testcontainers.containers.output.OutputFrame;
 import org.testcontainers.oracle.OracleContainer;
 
 import java.io.File;
@@ -35,6 +34,7 @@ import static org.testng.Assert.fail;
 public class OracleSinkTester<T> extends PulsarTester<OracleContainer> {
     protected Class<T> tClass;
     protected Connection connection;
+    protected final String databaseName = "ORCL";
     protected final String tableName;
     protected String keyColumns;
     protected String nonKeyColumns;
@@ -75,6 +75,7 @@ public class OracleSinkTester<T> extends PulsarTester<OracleContainer> {
     protected OracleContainer createContainerService() {
         return (OracleContainer) new OracleContainer("gvenzl/oracle-free:slim")
                 .withStartupTimeout(Duration.ofMinutes(3))
+                .withDatabaseName(databaseName)
                 .withUsername("tester")
                 .withPassword("test-pwd")
                 .withExposedPorts(1521)
@@ -85,27 +86,50 @@ public class OracleSinkTester<T> extends PulsarTester<OracleContainer> {
     @Override
     public void prepareSink() throws Exception {
         // for internal communication in shared network
-        String jdbcUrlInternal = "jdbc:oracle:thin:@oracle:1521/freepdb1";
+        String jdbcUrlInternal = "jdbc:oracle:thin:@oracle:1521/ORCL";
         // for external connection (from local to container)
         String jdbcUrl = serviceContainer.getJdbcUrl();
         String username = serviceContainer.getUsername();
         String password = serviceContainer.getPassword();
+        String table = tableName.toUpperCase();
+        String schema = username.toUpperCase();
+
+        log.info("Got credentials for integration test: \n " +
+                "internal_jdbc = {} \n " +
+                "external_jdbc = {} \n " +
+                "user = {} \n " +
+                "schema = {} \n " +
+                "table = {} \n ", jdbcUrlInternal, jdbcUrl, username, schema, table);
 
         // Define sink configurations based on OracleSinkConfig class.
         sinkConfig.put("jdbcURL", jdbcUrlInternal);
         sinkConfig.put("user", username);
         sinkConfig.put("password", password);
-        sinkConfig.put("table", tableName);
+        sinkConfig.put("table", table);
+        sinkConfig.put("schema", schema);
         setKeyColumnsConfig(keyColumns);
         setNonKeyColumnsConfig(nonKeyColumns);
 
         // Create jdbc connection
         connection = DriverManager.getConnection(jdbcUrl, username, password);
-        log.info("get connection: {}, jdbcUrl: {}", connection, jdbcUrl);
+        log.info("Get connection: {}, jdbcUrl: {}", connection, jdbcUrl);
+
         // Get the statement method based on table structure.
-        String createTableStatement = this.createStatement;
-        int ret = connection.createStatement().executeUpdate(createTableStatement);
-        log.info("created table in jdbc: {}, return value: {}", createTableStatement, ret);
+        int ret = connection.createStatement().executeUpdate(this.createStatement);
+        log.info("Created table in jdbc: {}, return value: {}", this.createStatement, ret);
+
+        ResultSet resultSet = connection.getMetaData().getTables(
+                null,
+                username.toUpperCase(),
+                tableName.toUpperCase(),
+                new String[]{"TABLE"});
+
+        if(resultSet.next()) {
+            log.info("Create table {} within schema: {}", resultSet.getString("TABLE_NAME"), resultSet.getString("TABLE_SCHEM"));
+        } else {
+            log.error(serviceContainer.getLogs());
+            throw(new Exception("Cannot get metadata information"));
+        }
     }
 
     /**
@@ -114,8 +138,27 @@ public class OracleSinkTester<T> extends PulsarTester<OracleContainer> {
      */
     @Override
     public void validateSinkResult(List<Map<String, Object>> results) {
+        log.info("Checking rows count...");
+        String checkRowStatement = "SELECT COUNT(*) AS rowCount FROM " + tableName.toUpperCase();
+
+        try (PreparedStatement statement = connection.prepareStatement(checkRowStatement)) {
+            ResultSet queryResult = statement.executeQuery();
+
+            if (queryResult.next()) {
+                int rowCount = queryResult.getInt("rowCount");
+                if (rowCount != results.size()) {
+                    log.error(getContainerLog());
+                    fail("Row count is not equal to produced messages: \n " + "num_produce: " + results.size() + " \n num_queried: " + rowCount);
+                }
+            } else {
+                fail("No rows found from count statement");
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
         log.info("Query table content from oracle server: {}", tableName);
-        String queryStatement = "SELECT * FROM " + tableName + " ORDER BY " + orderColumn;
+        String queryStatement = "SELECT * FROM " + tableName.toUpperCase() + " ORDER BY " + orderColumn;
 
         // Sorting the list based on given order column
         results.sort((map1, map2) -> {
@@ -126,14 +169,8 @@ public class OracleSinkTester<T> extends PulsarTester<OracleContainer> {
 
         ResultSet rs;
         try {
-            Thread.sleep(2000);
             PreparedStatement statement = connection.prepareStatement(queryStatement);
             rs = statement.executeQuery();
-
-            if (!rs.next()) {
-                Container.ExecResult functionLog = pulsarContainer.execInContainer("sh", "-c", "cat logs//functions/public/default/oracle-sink-tester/oracle-sink-tester-0.log");
-                fail("Got empty query from oracle database: \n" + functionLog);
-            }
 
             int index = 0;
             while (rs.next()) {
@@ -215,6 +252,19 @@ public class OracleSinkTester<T> extends PulsarTester<OracleContainer> {
     public T loadTestData(String filePath) throws IOException {
         ObjectMapper mapper = new ObjectMapper();
         return mapper.readValue(new File(filePath), tClass);
+    }
+
+    public String getContainerLog() throws Exception {
+        StringBuilder containerLog = new StringBuilder();
+        containerLog.append("Oracle Container Log: \n\n");
+        containerLog.append(serviceContainer.getLogs());
+        containerLog.append("\n\n Pulsar Container Log: \n\n");
+        containerLog.append(pulsarContainer.getLogs());
+        containerLog.append("\n\n Pulsar Function Log: \n\n");
+        Container.ExecResult functionLog = pulsarContainer.execInContainer("sh", "-c", "cat logs//functions/public/default/oracle-sink-tester/oracle-sink-tester-0.log");
+        containerLog.append(functionLog);
+
+        return containerLog.toString();
     }
 
 }
